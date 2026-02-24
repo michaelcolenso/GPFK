@@ -144,6 +144,114 @@ class KnownDeal(Base):
     source: Mapped[str | None] = mapped_column(String(50))
 
 
+class LobbyingRecord(Base):
+    """Senate LDA lobbying filing where a tracked company is the client."""
+
+    __tablename__ = "lobbying_records"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    ticker: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
+    filing_uuid: Mapped[str] = mapped_column(String(64), unique=True)
+    filing_type: Mapped[str | None] = mapped_column(String(20))
+    filing_year: Mapped[int | None] = mapped_column(Integer)
+    period_display: Mapped[str | None] = mapped_column(String(20))
+    filed_at: Mapped[datetime | None] = mapped_column(DateTime, index=True)
+    registrant_name: Mapped[str | None] = mapped_column(String(255))
+    client_name: Mapped[str | None] = mapped_column(String(255))
+    income: Mapped[float | None] = mapped_column(Float)
+    expenses: Mapped[float | None] = mapped_column(Float)
+    issue_codes: Mapped[str | None] = mapped_column(Text)  # comma-separated
+    descriptions: Mapped[str | None] = mapped_column(Text)
+    is_ma_signal: Mapped[bool] = mapped_column(Boolean, default=False)
+    collected_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class OptionsSnapshot(Base):
+    """Daily options market snapshot for a ticker."""
+
+    __tablename__ = "options_snapshots"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    ticker: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
+    snapshot_date: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    current_price: Mapped[float | None] = mapped_column(Float)
+    otm_call_volume: Mapped[int] = mapped_column(Integer, default=0)
+    otm_call_oi: Mapped[int] = mapped_column(Integer, default=0)
+    total_call_volume: Mapped[int] = mapped_column(Integer, default=0)
+    total_put_volume: Mapped[int] = mapped_column(Integer, default=0)
+    put_call_ratio: Mapped[float | None] = mapped_column(Float)
+    volume_oi_ratio: Mapped[float | None] = mapped_column(Float)
+    max_volume_oi_ratio: Mapped[float | None] = mapped_column(Float)
+    avg_otm_iv: Mapped[float | None] = mapped_column(Float)
+    anomaly_score: Mapped[float | None] = mapped_column(Float)
+    collected_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    __table_args__ = (
+        UniqueConstraint("ticker", "snapshot_date", name="uq_options_ticker_date"),
+    )
+
+
+class TrademarkFiling(Base):
+    """USPTO trademark application filed by a tracked company."""
+
+    __tablename__ = "trademark_filings"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    ticker: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
+    serial_number: Mapped[str] = mapped_column(String(30), unique=True)
+    mark_text: Mapped[str | None] = mapped_column(Text)
+    filing_date: Mapped[datetime | None] = mapped_column(DateTime, index=True)
+    status: Mapped[str | None] = mapped_column(String(50))
+    is_merger_signal: Mapped[bool] = mapped_column(Boolean, default=False)
+    signal_type: Mapped[str | None] = mapped_column(String(50))
+    source: Mapped[str | None] = mapped_column(String(30))
+    collected_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class ExecutiveDeparture(Base):
+    """SEC 8-K Item 5.02 executive departure filing."""
+
+    __tablename__ = "executive_departures"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    ticker: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
+    cik: Mapped[str | None] = mapped_column(String(20))
+    accession_number: Mapped[str] = mapped_column(String(50), unique=True)
+    filed_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, index=True)
+    officer_name: Mapped[str | None] = mapped_column(String(255))
+    title: Mapped[str | None] = mapped_column(String(255))
+    departure_type: Mapped[str | None] = mapped_column(String(50))
+    officer_weight: Mapped[float] = mapped_column(Float, default=0.2)
+    is_senior: Mapped[bool] = mapped_column(Boolean, default=False)
+    collected_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class EmployeeSentimentSnapshot(Base):
+    """Aggregated employee review sentiment snapshot."""
+
+    __tablename__ = "employee_sentiment_snapshots"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    ticker: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
+    snapshot_date: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    source: Mapped[str] = mapped_column(String(30), default="indeed")
+    review_count: Mapped[int] = mapped_column(Integer, default=0)
+    ma_mention_count: Mapped[int] = mapped_column(Integer, default=0)
+    uncertainty_mention_count: Mapped[int] = mapped_column(Integer, default=0)
+    avg_sentiment: Mapped[float | None] = mapped_column(Float)
+    avg_rating: Mapped[float | None] = mapped_column(Float)
+    ma_mention_rate: Mapped[float | None] = mapped_column(Float)
+    sentiment_drop_flag: Mapped[bool] = mapped_column(Boolean, default=False)
+    collected_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    __table_args__ = (
+        UniqueConstraint(
+            "ticker", "snapshot_date", "source",
+            name="uq_sentiment_ticker_date_source",
+        ),
+    )
+
+
 class SignalVector(Base):
     """
     Computed feature vector per company per day.
@@ -175,6 +283,36 @@ class SignalVector(Base):
     # Patent signals
     patent_assignments_outbound_30d: Mapped[int] = mapped_column(Integer, default=0)
     patent_assignments_inbound_30d: Mapped[int] = mapped_column(Integer, default=0)
+
+    # Lobbying signals
+    lobbying_ma_filings_30d: Mapped[int] = mapped_column(Integer, default=0)
+    lobbying_ma_filings_90d: Mapped[int] = mapped_column(Integer, default=0)
+    lobbying_ma_spend_30d: Mapped[float] = mapped_column(Float, default=0.0)
+
+    # Options flow signals
+    options_otm_call_volume: Mapped[int] = mapped_column(Integer, default=0)
+    options_put_call_ratio: Mapped[float | None] = mapped_column(Float)
+    options_volume_oi_ratio: Mapped[float | None] = mapped_column(Float)
+    options_anomaly_score: Mapped[float] = mapped_column(Float, default=0.0)
+    options_fresh_buying_flag: Mapped[bool] = mapped_column(Boolean, default=False)
+
+    # Trademark signals
+    trademark_filings_30d: Mapped[int] = mapped_column(Integer, default=0)
+    trademark_merger_signals_30d: Mapped[int] = mapped_column(Integer, default=0)
+    trademark_domain_registrations: Mapped[int] = mapped_column(Integer, default=0)
+
+    # Executive departure signals
+    exec_departures_30d: Mapped[int] = mapped_column(Integer, default=0)
+    senior_exec_departures_30d: Mapped[int] = mapped_column(Integer, default=0)
+    exec_departure_weighted_score: Mapped[float] = mapped_column(Float, default=0.0)
+    ceo_departed_90d: Mapped[bool] = mapped_column(Boolean, default=False)
+    cfo_departed_90d: Mapped[bool] = mapped_column(Boolean, default=False)
+
+    # Employee sentiment signals
+    employee_ma_mention_rate: Mapped[float] = mapped_column(Float, default=0.0)
+    employee_avg_sentiment: Mapped[float | None] = mapped_column(Float)
+    employee_uncertainty_count: Mapped[int] = mapped_column(Integer, default=0)
+    employee_sentiment_drop_flag: Mapped[bool] = mapped_column(Boolean, default=False)
 
     # Composite
     composite_score: Mapped[float] = mapped_column(Float, default=0.0)
